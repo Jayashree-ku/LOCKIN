@@ -94,11 +94,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        fetchProfile(session.user.id, supabase);
+    // Check active session using recommended auth.getUser()
+    supabase.auth.getUser().then(({ data: { user }, error }) => {
+      if (user && !error) {
+        setUser(user);
+        setIsDemoUser(false);
+        fetchProfile(user.id, supabase);
       } else {
         // Unauthenticated visitor
         setUser(null);
