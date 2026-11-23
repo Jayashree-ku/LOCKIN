@@ -14,19 +14,22 @@ import {
   Filter,
   Sparkles,
 } from 'lucide-react';
+import { useAuth } from '@/lib/context/AuthContext';
 
 export default function ProjectsPage() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDifficulty, setSelectedDifficulty] = useState('all');
   const [selectedBranch, setSelectedBranch] = useState('all');
 
-  // Local student project status tracker
+  // Local student project status tracker (only active for authenticated users)
   const [projectStatuses, setProjectStatuses] = useState<Record<string, string>>({
     '77777777-0001-0000-0000-000000000001': 'completed',
     '77777777-0001-0000-0000-000000000002': 'in_progress',
   });
 
   const toggleStatus = (projectId: string) => {
+    if (!user) return; // Protected: only authenticated users can track projects
     setProjectStatuses((prev) => {
       const current = prev[projectId] || 'not_started';
       let next = 'in_progress';

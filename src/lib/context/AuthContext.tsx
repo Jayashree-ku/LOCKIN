@@ -47,6 +47,24 @@ const DEMO_PREFERENCES: StudentPreferences = {
   learning_preferences: ['Hands-on Projects', 'Structured Roadmap'],
 };
 
+const DEMO_SAVED_BRANCHES = [
+  '22222222-0002-0000-0000-000000000002', // CS
+  '22222222-0003-0000-0000-000000000003', // ECE
+  '22222222-0004-0000-0000-000000000004', // Mech
+];
+
+const DEMO_COMPLETED_MILESTONES = [
+  '55555555-0001-0000-0000-000000000001', // Python Core
+  '55555555-0001-0000-0000-000000000002', // Git
+  '55555555-0001-0000-0000-000000000004', // DSA
+  '55555555-0001-0000-0000-000000000005', // Linear Algebra
+];
+
+const DEMO_SAVED_RESOURCES = [
+  '66666666-0001-0000-0000-000000000001',
+  '66666666-0001-0000-0000-000000000003',
+];
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -57,33 +75,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isConfigured, setIsConfigured] = useState<boolean>(false);
   const [isDemoUser, setIsDemoUser] = useState<boolean>(false);
 
-  // In-session tracking
-  const [savedBranchIds, setSavedBranchIds] = useState<string[]>([
-    '22222222-0002-0000-0000-000000000002', // CS
-    '22222222-0003-0000-0000-000000000003', // ECE
-    '22222222-0004-0000-0000-000000000004', // Mech
-  ]);
-  const [completedMilestoneIds, setCompletedMilestoneIds] = useState<string[]>([
-    '55555555-0001-0000-0000-000000000001', // Python Core
-    '55555555-0001-0000-0000-000000000002', // Git
-    '55555555-0001-0000-0000-000000000004', // DSA
-    '55555555-0001-0000-0000-000000000005', // Linear Algebra
-  ]);
-  const [savedResourceIds, setSavedResourceIds] = useState<string[]>([
-    '66666666-0001-0000-0000-000000000001',
-    '66666666-0001-0000-0000-000000000003',
-  ]);
+  // In-session tracking (starts empty until user is authenticated)
+  const [savedBranchIds, setSavedBranchIds] = useState<string[]>([]);
+  const [completedMilestoneIds, setCompletedMilestoneIds] = useState<string[]>([]);
+  const [savedResourceIds, setSavedResourceIds] = useState<string[]>([]);
 
   useEffect(() => {
     const configured = isSupabaseConfigured();
     setIsConfigured(configured);
 
     if (!configured) {
-      // Initialize interactive demo user
-      setUser({ id: DEMO_PROFILE.id, email: 'jayashree@student.lockin.dev' });
-      setProfile(DEMO_PROFILE);
-      setPreferences(DEMO_PREFERENCES);
-      setIsDemoUser(true);
+      // Check if there is an active offline session cookie
+      const hasSessionCookie =
+        typeof document !== 'undefined' &&
+        document.cookie
+          .split(';')
+          .some((item) => item.trim().startsWith('lockin_session=true'));
+
+      if (hasSessionCookie) {
+        setUser({ id: DEMO_PROFILE.id, email: 'jayashree@student.lockin.dev' });
+        setProfile(DEMO_PROFILE);
+        setPreferences(DEMO_PREFERENCES);
+        setSavedBranchIds(DEMO_SAVED_BRANCHES);
+        setCompletedMilestoneIds(DEMO_COMPLETED_MILESTONES);
+        setSavedResourceIds(DEMO_SAVED_RESOURCES);
+        setIsDemoUser(true);
+      } else {
+        setUser(null);
+        setProfile(null);
+        setPreferences(null);
+        setSavedBranchIds([]);
+        setCompletedMilestoneIds([]);
+        setSavedResourceIds([]);
+        setIsDemoUser(false);
+      }
       setIsLoading(false);
       return;
     }
@@ -104,6 +129,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Unauthenticated visitor
         setUser(null);
         setProfile(null);
+        setPreferences(null);
+        setSavedBranchIds([]);
+        setCompletedMilestoneIds([]);
+        setSavedResourceIds([]);
         setIsLoading(false);
       }
     });
@@ -117,6 +146,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         setProfile(null);
         setPreferences(null);
+        setSavedBranchIds([]);
+        setCompletedMilestoneIds([]);
+        setSavedResourceIds([]);
         setIsLoading(false);
       }
     });
@@ -166,6 +198,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (progress) {
         setCompletedMilestoneIds(progress.map((p: any) => p.milestone_id));
       }
+
+      // Fetch saved resources
+      const { data: resources } = await supabase
+        .from('saved_resources')
+        .select('resource_id')
+        .eq('student_id', userId);
+      if (resources) {
+        setSavedResourceIds(resources.map((r: any) => r.resource_id));
+      }
     } catch (err) {
       console.error('Error fetching student profile:', err);
     } finally {
@@ -177,8 +218,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const supabase = createClient();
     if (!supabase) {
       // Demo login
+      if (typeof document !== 'undefined') {
+        document.cookie = 'lockin_session=true; path=/; max-age=604800; SameSite=Lax';
+      }
       setUser({ id: DEMO_PROFILE.id, email });
       setProfile({ ...DEMO_PROFILE, full_name: email.split('@')[0] });
+      setPreferences(DEMO_PREFERENCES);
+      setSavedBranchIds(DEMO_SAVED_BRANCHES);
+      setCompletedMilestoneIds(DEMO_COMPLETED_MILESTONES);
+      setSavedResourceIds(DEMO_SAVED_RESOURCES);
       setIsDemoUser(true);
       return { error: null };
     }
@@ -194,8 +242,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const supabase = createClient();
     if (!supabase) {
       // Demo signup
+      if (typeof document !== 'undefined') {
+        document.cookie = 'lockin_session=true; path=/; max-age=604800; SameSite=Lax';
+      }
       setUser({ id: DEMO_PROFILE.id, email });
       setProfile({ ...DEMO_PROFILE, full_name: fullName });
+      setPreferences(DEMO_PREFERENCES);
+      setSavedBranchIds(DEMO_SAVED_BRANCHES);
+      setCompletedMilestoneIds(DEMO_COMPLETED_MILESTONES);
+      setSavedResourceIds(DEMO_SAVED_RESOURCES);
       setIsDemoUser(true);
       return { error: null };
     }
@@ -217,10 +272,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (supabase) {
       await supabase.auth.signOut();
     }
+    if (typeof document !== 'undefined') {
+      document.cookie = 'lockin_session=; path=/; max-age=0; SameSite=Lax';
+    }
     setUser(null);
     setProfile(null);
     setPreferences(null);
+    setSavedBranchIds([]);
+    setCompletedMilestoneIds([]);
+    setSavedResourceIds([]);
     setIsDemoUser(false);
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
   };
 
   const resetPassword = async (email: string) => {
@@ -235,6 +299,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const toggleSaveBranch = (branchId: string) => {
+    if (!user) return; // Only authenticated users
     setSavedBranchIds((prev) => {
       const exists = prev.includes(branchId);
       const next = exists ? prev.filter((id) => id !== branchId) : [...prev, branchId];
@@ -252,6 +317,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const toggleCompleteMilestone = (milestoneId: string) => {
+    if (!user) return; // Only authenticated users
     setCompletedMilestoneIds((prev) => {
       const exists = prev.includes(milestoneId);
       const next = exists ? prev.filter((id) => id !== milestoneId) : [...prev, milestoneId];
@@ -274,6 +340,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const toggleSaveResource = (resourceId: string) => {
+    if (!user) return; // Only authenticated users
     setSavedResourceIds((prev) => {
       const exists = prev.includes(resourceId);
       const next = exists ? prev.filter((id) => id !== resourceId) : [...prev, resourceId];
@@ -291,6 +358,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateBranchSelection = (branchId: string) => {
+    if (!user) return; // Only authenticated users
     if (profile) {
       setProfile({ ...profile, selected_branch_id: branchId });
     }
@@ -301,6 +369,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updatePreferences = (newPrefs: Partial<StudentPreferences>) => {
+    if (!user) return; // Only authenticated users
     setPreferences((prev) => {
       const updated = prev ? { ...prev, ...newPrefs } : ({ ...DEMO_PREFERENCES, ...newPrefs } as StudentPreferences);
       const supabase = createClient();
