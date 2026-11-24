@@ -1,10 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { isSupabaseConfigured } from './client';
+import { isSupabaseConfigured, getSupabaseUrl, getSupabaseAnonKey } from './client';
 
-// Public routes that do not require authentication
-const PUBLIC_ROUTES = [
-  '/',
+// Public authentication routes
+const PUBLIC_AUTH_ROUTES = [
   '/login',
   '/signup',
   '/forgot-password',
@@ -17,17 +16,15 @@ export async function updateSession(request: NextRequest) {
   });
 
   const pathname = request.nextUrl.pathname;
-  const isPublicRoute = PUBLIC_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith('/_next')
+  const isAuthRoute = PUBLIC_AUTH_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(route + '/')
   );
 
   let isAuthenticated = false;
 
   if (isSupabaseConfigured()) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseKey =
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const supabaseUrl = getSupabaseUrl();
+    const supabaseKey = getSupabaseAnonKey();
 
     const supabase = createServerClient(supabaseUrl, supabaseKey, {
       cookies: {
@@ -46,25 +43,46 @@ export async function updateSession(request: NextRequest) {
       },
     });
 
-    // IMPORTANT: Avoid writing any logic between createServerClient and
-    // supabase.auth.getUser().
+    // IMPORTANT: Verify session with Supabase server
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     isAuthenticated = Boolean(user);
-  }
-
-  // Also support demo/offline session cookie (e.g. while testing or prior to live Supabase keys)
-  if (!isAuthenticated) {
+  } else {
+    // Local offline/demo mode testing session check
     const demoCookie = request.cookies.get('lockin_session')?.value;
-    if (demoCookie === 'true') {
-      isAuthenticated = true;
-    }
+    isAuthenticated = demoCookie === 'true';
   }
 
-  // 1. If unauthenticated user tries to access a protected route -> redirect to /login
-  if (!isAuthenticated && !isPublicRoute) {
+  // Case 1: Unauthenticated visitor accessing root '/' -> redirect to /login
+  if (!isAuthenticated && pathname === '/') {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/login';
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
+    });
+
+    return redirectResponse;
+  }
+
+  // Case 2: Authenticated visitor accessing root '/' -> redirect to /dashboard
+  if (isAuthenticated && pathname === '/') {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/dashboard';
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
+    });
+
+    return redirectResponse;
+  }
+
+  // Case 3: Unauthenticated user accessing a protected route -> redirect to /login
+  if (!isAuthenticated && !isAuthRoute) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/login';
     redirectUrl.searchParams.set(
@@ -73,7 +91,6 @@ export async function updateSession(request: NextRequest) {
     );
     const redirectResponse = NextResponse.redirect(redirectUrl);
 
-    // Carry over any cookies set by Supabase (e.g. session token cleanup)
     supabaseResponse.cookies.getAll().forEach((cookie) => {
       redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
     });
@@ -81,13 +98,13 @@ export async function updateSession(request: NextRequest) {
     return redirectResponse;
   }
 
-  // 2. If authenticated user tries to visit /login or /signup -> redirect to /discover (or intended next)
+  // Case 4: Authenticated user visiting /login or /signup -> redirect to /dashboard
   if (isAuthenticated && (pathname === '/login' || pathname === '/signup')) {
     const nextParam = request.nextUrl.searchParams.get('next');
     const targetPath =
       nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')
         ? nextParam
-        : '/discover';
+        : '/dashboard';
     const redirectUrl = new URL(targetPath, request.url);
     const redirectResponse = NextResponse.redirect(redirectUrl);
 

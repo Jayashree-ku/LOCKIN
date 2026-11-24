@@ -14,8 +14,8 @@ interface AuthContextType {
   savedBranchIds: string[];
   completedMilestoneIds: string[];
   savedResourceIds: string[];
-  signIn: (email: string, pass: string) => Promise<{ error: any | null }>;
-  signUp: (email: string, pass: string, fullName: string) => Promise<{ error: any | null }>;
+  signIn: (email: string, pass: string) => Promise<{ data?: any; error: any | null }>;
+  signUp: (email: string, pass: string, fullName: string) => Promise<{ data?: any; error: any | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any | null }>;
   toggleSaveBranch: (branchId: string) => void;
@@ -217,54 +217,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, pass: string) => {
     const supabase = createClient();
     if (!supabase) {
-      // Demo login
+      // Local testing / Demo login
       if (typeof document !== 'undefined') {
         document.cookie = 'lockin_session=true; path=/; max-age=604800; SameSite=Lax';
       }
-      setUser({ id: DEMO_PROFILE.id, email });
-      setProfile({ ...DEMO_PROFILE, full_name: email.split('@')[0] });
+      const demoEmail = email.trim();
+      setUser({ id: DEMO_PROFILE.id, email: demoEmail });
+      setProfile({ ...DEMO_PROFILE, full_name: demoEmail.split('@')[0] });
       setPreferences(DEMO_PREFERENCES);
       setSavedBranchIds(DEMO_SAVED_BRANCHES);
       setCompletedMilestoneIds(DEMO_COMPLETED_MILESTONES);
       setSavedResourceIds(DEMO_SAVED_RESOURCES);
       setIsDemoUser(true);
-      return { error: null };
+      return { data: { user: { id: DEMO_PROFILE.id, email: demoEmail } }, error: null };
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
       password: pass,
     });
-    return { error };
+    return { data, error };
   };
 
   const signUp = async (email: string, pass: string, fullName: string) => {
     const supabase = createClient();
     if (!supabase) {
-      // Demo signup
+      // Local testing / Demo signup
       if (typeof document !== 'undefined') {
         document.cookie = 'lockin_session=true; path=/; max-age=604800; SameSite=Lax';
       }
-      setUser({ id: DEMO_PROFILE.id, email });
-      setProfile({ ...DEMO_PROFILE, full_name: fullName });
+      const demoEmail = email.trim();
+      setUser({ id: DEMO_PROFILE.id, email: demoEmail });
+      setProfile({ ...DEMO_PROFILE, full_name: fullName.trim() });
       setPreferences(DEMO_PREFERENCES);
       setSavedBranchIds(DEMO_SAVED_BRANCHES);
       setCompletedMilestoneIds(DEMO_COMPLETED_MILESTONES);
       setSavedResourceIds(DEMO_SAVED_RESOURCES);
       setIsDemoUser(true);
-      return { error: null };
+      return { data: { user: { id: DEMO_PROFILE.id, email: demoEmail } }, error: null };
     }
 
-    const { error } = await supabase.auth.signUp({
-      email,
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
       password: pass,
       options: {
         data: {
-          full_name: fullName,
+          full_name: fullName.trim(),
         },
       },
     });
-    return { error };
+    return { data, error };
   };
 
   const signOut = async () => {
@@ -273,7 +275,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await supabase.auth.signOut();
     }
     if (typeof document !== 'undefined') {
-      document.cookie = 'lockin_session=; path=/; max-age=0; SameSite=Lax';
+      document.cookie = 'lockin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch {
+        // Storage clear protection
+      }
     }
     setUser(null);
     setProfile(null);
@@ -292,7 +302,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!supabase) {
       return { error: null };
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/auth/callback?next=/profile`,
     });
     return { error };

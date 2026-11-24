@@ -1,17 +1,29 @@
 import { createBrowserClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const getSupabaseUrl = (): string => {
+  return process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+};
+
+export const getSupabaseAnonKey = (): string => {
+  return (
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    ''
+  );
+};
 
 export const isSupabaseConfigured = (): boolean => {
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
+
   return Boolean(
-    supabaseUrl &&
-    supabaseKey &&
-    supabaseUrl.startsWith('https://') &&
-    !supabaseUrl.includes('your-project-id')
+    url &&
+    key &&
+    url.trim().length > 0 &&
+    key.trim().length > 0 &&
+    url.startsWith('https://') &&
+    !url.includes('your-project-id')
   );
 };
 
@@ -24,8 +36,8 @@ export const createClient = () => {
 
   if (!browserClient) {
     browserClient = createBrowserClient(
-      supabaseUrl!,
-      supabaseKey!
+      getSupabaseUrl(),
+      getSupabaseAnonKey()
     );
   }
 

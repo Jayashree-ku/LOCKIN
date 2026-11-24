@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/context/AuthContext';
 import { HeroStudentStairsArtwork } from '@/components/shared/StarrySkyBackground';
-import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 function SignUpForm() {
   const router = useRouter();
@@ -19,32 +19,57 @@ function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const getDestination = () => {
     if (nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')) {
       return nextParam;
     }
-    return '/discover';
+    return '/dashboard';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !email || !password) {
-      setErrorMsg('Please fill in all fields.');
+    if (loading) return; // Prevent multiple submissions
+
+    const trimmedName = fullName.trim();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedName || !trimmedEmail || !password) {
+      setErrorMsg('Please fill in all required fields.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMsg('Password must be at least 6 characters long.');
       return;
     }
 
     setLoading(true);
     setErrorMsg(null);
+    setSuccessMsg(null);
 
-    const { error } = await signUp(email, password, fullName);
+    const { data, error } = await signUp(trimmedEmail, password, trimmedName);
     setLoading(false);
 
     if (error) {
-      setErrorMsg(error.message || 'Signup failed.');
+      setErrorMsg(error.message || 'Registration failed. Please check your information and try again.');
     } else {
-      router.push(getDestination());
-      router.refresh();
+      // Check if email confirmation is required by Supabase
+      if (data?.user && !data?.session && isConfigured) {
+        setSuccessMsg(
+          'Registration successful! Please check your email to verify your account before logging in.'
+        );
+      } else {
+        router.push(getDestination());
+        router.refresh();
+      }
     }
   };
 
@@ -87,13 +112,28 @@ function SignUpForm() {
 
       {!isConfigured && (
         <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-600/30 text-amber-900 text-xs leading-relaxed">
-          <strong>Offline / Demo Mode:</strong> You can create a profile to test the application and roadmaps. Connect Supabase in <code className="font-mono">.env.local</code> for production Auth.
+          <strong>Testing Mode:</strong> Supabase API keys are not detected in <code className="font-mono">.env.local</code>. You can register a test profile to explore the platform.
         </div>
       )}
 
       {errorMsg && (
-        <div className="mb-4 p-3 rounded-xl bg-red-500/15 border border-red-600/30 text-red-900 text-xs">
+        <div className="mb-4 p-3 rounded-xl bg-red-500/15 border border-red-600/30 text-red-900 text-xs leading-relaxed">
           {errorMsg}
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="mb-4 p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-600/30 text-emerald-950 text-xs leading-relaxed flex items-start gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+          <div className="flex flex-col gap-1.5">
+            <span>{successMsg}</span>
+            <Link
+              href="/login"
+              className="text-xs font-bold text-emerald-800 underline hover:text-emerald-950"
+            >
+              Go to Sign In →
+            </Link>
+          </div>
         </div>
       )}
 
@@ -105,10 +145,11 @@ function SignUpForm() {
           <input
             type="text"
             required
+            disabled={loading}
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             placeholder="Full name (e.g. Jayashree K)"
-            className="w-full pl-10 pr-4 py-3 rounded-xl border border-midnight/15 bg-white/60 focus:bg-white text-midnight placeholder:text-midnight/40 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-midnight/20 transition-all"
+            className="w-full pl-10 pr-4 py-3 rounded-xl border border-midnight/15 bg-white/60 focus:bg-white text-midnight placeholder:text-midnight/40 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-midnight/20 transition-all disabled:opacity-50"
           />
         </div>
 
@@ -118,10 +159,11 @@ function SignUpForm() {
           <input
             type="email"
             required
+            disabled={loading}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email address"
-            className="w-full pl-10 pr-4 py-3 rounded-xl border border-midnight/15 bg-white/60 focus:bg-white text-midnight placeholder:text-midnight/40 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-midnight/20 transition-all"
+            className="w-full pl-10 pr-4 py-3 rounded-xl border border-midnight/15 bg-white/60 focus:bg-white text-midnight placeholder:text-midnight/40 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-midnight/20 transition-all disabled:opacity-50"
           />
         </div>
 
@@ -131,10 +173,11 @@ function SignUpForm() {
           <input
             type={showPassword ? 'text' : 'password'}
             required
+            disabled={loading}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password (min 6 characters)"
-            className="w-full pl-10 pr-10 py-3 rounded-xl border border-midnight/15 bg-white/60 focus:bg-white text-midnight placeholder:text-midnight/40 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-midnight/20 transition-all"
+            className="w-full pl-10 pr-10 py-3 rounded-xl border border-midnight/15 bg-white/60 focus:bg-white text-midnight placeholder:text-midnight/40 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-midnight/20 transition-all disabled:opacity-50"
           />
           <button
             type="button"
@@ -149,7 +192,7 @@ function SignUpForm() {
         <button
           type="submit"
           disabled={loading}
-          className="mt-4 w-full py-3.5 rounded-xl bg-midnight text-cream hover:bg-black font-semibold text-xs transition-all shadow-md flex items-center justify-center gap-2 group"
+          className="mt-4 w-full py-3.5 rounded-xl bg-midnight text-cream hover:bg-black font-semibold text-xs transition-all shadow-md flex items-center justify-center gap-2 group disabled:opacity-60"
         >
           <span>{loading ? 'Creating account...' : 'Create Account & Continue'}</span>
           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -170,7 +213,7 @@ export default function SignUpPage() {
       <div className="lg:w-1/2 p-8 md:p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden bg-gradient-to-b from-[#14213D] via-[#0d162a] to-[#0B0B0C]">
         <div className="absolute top-12 left-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <Link href="/" className="inline-block z-10">
+        <Link href="/login" className="inline-block z-10">
           <span className="text-3xl font-extrabold tracking-tight text-cream">
             lockin<span className="text-cream/50">.</span>
           </span>

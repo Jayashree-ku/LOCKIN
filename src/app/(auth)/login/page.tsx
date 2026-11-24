@@ -24,24 +24,33 @@ function LoginForm() {
     if (nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')) {
       return nextParam;
     }
-    return '/discover';
+    return '/dashboard';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setErrorMsg('Please enter both email and password.');
+    if (loading) return; // Prevent multiple submissions
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setErrorMsg('Please enter both your email address and password.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setErrorMsg('Please enter a valid email address.');
       return;
     }
 
     setLoading(true);
     setErrorMsg(null);
 
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(trimmedEmail, password);
     setLoading(false);
 
     if (error) {
-      setErrorMsg(error.message || 'Login failed. Please check your credentials.');
+      setErrorMsg(error.message || 'Invalid email or password. Please check your credentials.');
     } else {
       router.push(getDestination());
       router.refresh();
@@ -87,12 +96,12 @@ function LoginForm() {
 
       {!isConfigured && (
         <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-600/30 text-amber-900 text-xs leading-relaxed">
-          <strong>Offline / Demo Mode:</strong> Click Continue with Google or enter any credentials to explore LOCKIN. Add Supabase keys to <code className="font-mono">.env.local</code> for live persistence.
+          <strong>Testing Mode:</strong> Supabase API keys are not detected in <code className="font-mono">.env.local</code>. You can test login with any credentials, or click Continue with Google.
         </div>
       )}
 
       {errorMsg && (
-        <div className="mb-4 p-3 rounded-xl bg-red-500/15 border border-red-600/30 text-red-900 text-xs">
+        <div className="mb-4 p-3 rounded-xl bg-red-500/15 border border-red-600/30 text-red-900 text-xs leading-relaxed">
           {errorMsg}
         </div>
       )}
@@ -100,7 +109,9 @@ function LoginForm() {
       {/* Google Sign In */}
       <button
         type="button"
+        disabled={loading}
         onClick={async () => {
+          if (loading) return;
           setEmail('jayashree@student.lockin.dev');
           setPassword('password123');
           setLoading(true);
@@ -111,7 +122,7 @@ function LoginForm() {
             router.refresh();
           }
         }}
-        className="w-full py-3 px-4 rounded-xl border border-midnight/15 bg-white/70 hover:bg-white text-midnight font-medium text-xs flex items-center justify-center gap-2.5 transition-all shadow-sm"
+        className="w-full py-3 px-4 rounded-xl border border-midnight/15 bg-white/70 hover:bg-white text-midnight font-medium text-xs flex items-center justify-center gap-2.5 transition-all shadow-sm disabled:opacity-50"
       >
         <svg className="w-4 h-4" viewBox="0 0 24 24">
           <path
@@ -149,10 +160,11 @@ function LoginForm() {
           <input
             type="email"
             required
+            disabled={loading}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email address"
-            className="w-full pl-10 pr-4 py-3 rounded-xl border border-midnight/15 bg-white/60 focus:bg-white text-midnight placeholder:text-midnight/40 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-midnight/20 transition-all"
+            className="w-full pl-10 pr-4 py-3 rounded-xl border border-midnight/15 bg-white/60 focus:bg-white text-midnight placeholder:text-midnight/40 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-midnight/20 transition-all disabled:opacity-50"
           />
         </div>
 
@@ -162,10 +174,11 @@ function LoginForm() {
           <input
             type={showPassword ? 'text' : 'password'}
             required
+            disabled={loading}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            className="w-full pl-10 pr-10 py-3 rounded-xl border border-midnight/15 bg-white/60 focus:bg-white text-midnight placeholder:text-midnight/40 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-midnight/20 transition-all"
+            className="w-full pl-10 pr-10 py-3 rounded-xl border border-midnight/15 bg-white/60 focus:bg-white text-midnight placeholder:text-midnight/40 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-midnight/20 transition-all disabled:opacity-50"
           />
           <button
             type="button"
@@ -196,7 +209,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 w-full py-3.5 rounded-xl bg-midnight text-cream hover:bg-black font-semibold text-xs transition-all shadow-md flex items-center justify-center gap-2 group"
+          className="mt-2 w-full py-3.5 rounded-xl bg-midnight text-cream hover:bg-black font-semibold text-xs transition-all shadow-md flex items-center justify-center gap-2 group disabled:opacity-60"
         >
           <span>{loading ? 'Logging in...' : 'Log In'}</span>
           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -213,7 +226,9 @@ function LoginForm() {
             <button
               key={prov}
               type="button"
+              disabled={loading}
               onClick={async () => {
+                if (loading) return;
                 const demoMail = `student.${prov.toLowerCase()}@lockin.dev`;
                 setEmail(demoMail);
                 setPassword('lockin123');
@@ -225,7 +240,7 @@ function LoginForm() {
                   router.refresh();
                 }
               }}
-              className="w-9 h-9 rounded-xl border border-midnight/15 bg-white/40 hover:bg-white flex items-center justify-center text-midnight/70 hover:text-midnight text-xs font-bold transition-all"
+              className="w-9 h-9 rounded-xl border border-midnight/15 bg-white/40 hover:bg-white flex items-center justify-center text-midnight/70 hover:text-midnight text-xs font-bold transition-all disabled:opacity-50"
               title={`Sign in with ${prov}`}
             >
               {prov[0]}
@@ -246,7 +261,7 @@ export default function LoginPage() {
         <div className="absolute top-12 left-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Brand */}
-        <Link href="/" className="inline-block z-10">
+        <Link href="/login" className="inline-block z-10">
           <span className="text-3xl font-extrabold tracking-tight text-cream">
             lockin<span className="text-cream/50">.</span>
           </span>
